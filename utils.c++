@@ -3,6 +3,7 @@
 #include <vector>
 #include <random>
 #include <chrono>
+#include <cassert>
 void merge(std::vector<double> &vec, unsigned int l, unsigned int m, unsigned int r){
     unsigned int curr_left= l; 
     unsigned int curr_right=m+1; 
@@ -91,6 +92,43 @@ void quicksort(std::vector<int> &vec, int l, int r){
     quicksort(vec,l,j-1);
     quicksort(vec,j+1,r); 
 }
+
+char bit_checker(const std::string& A, int bit) {
+    return A[bit];
+}
+
+// insertion of strings with binary 0 or 1
+void radix_sort(std::vector<std::string>& vec, int left, int right, int bit) {
+
+    if (left >= right || bit < 0) {
+        return;
+    }
+
+    assert(static_cast<size_t>(bit) < vec[0].size());
+
+    int i = left-1;
+    int j = right+1;
+
+    do {
+        do {
+            ++i;
+        } while (i < j && bit_checker(vec[i], bit) == '0');
+
+        do {
+            --j;
+        } while (i < j && bit_checker(vec[j], bit) == '1');
+
+        if (i < j) {
+            std::swap(vec[i], vec[j]);
+        }
+
+    } while (i < j);
+
+    radix_sort(vec, left, i - 1, bit + 1);
+    radix_sort(vec, i, right, bit + 1);
+}
+
+
 
 int main(){
 unsigned int n = 100000000;
