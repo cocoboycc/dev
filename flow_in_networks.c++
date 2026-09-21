@@ -10,38 +10,80 @@ public:
     unsigned int from;
     unsigned int to;
     unsigned int capacity;
-    unsigned int flow;
+    int flow;                  // signed, because reverse flow can be negative
+    unsigned int reverse;      // index of the corresponding reverse edge
 
-    Edge(unsigned int from, unsigned int to,
-         unsigned int capacity, unsigned int flow)
-        : from(from), to(to), capacity(capacity), flow(flow) {}
+    Edge(unsigned int from,
+         unsigned int to,
+         unsigned int capacity,
+         int flow,
+         unsigned int reverse)
+        : from(from),
+          to(to),
+          capacity(capacity),
+          flow(flow),
+          reverse(reverse) {}
+
+    // FIX: centralize the residual-capacity computation and do it in a
+    // signed type (long long is plenty for realistic capacities). Every
+    // place that needs "how much more can flow through this edge" should
+    // go through this function instead of comparing/subtracting
+    // `capacity` (unsigned) and `flow` (signed) directly, which silently
+    // converts negative flow into a huge unsigned number and breaks both
+    // comparisons and reasoning about reverse edges.
+    long long residual_capacity() const {
+        return static_cast<long long>(capacity) - static_cast<long long>(flow);
+    }
 };
+
 
 class Graph {
 public:
 
     unsigned int n;
-    std::vector<Edge> edges;
+
     std::vector<std::vector<Edge>> adj;
 
-    // parent[v] = edge that was used to reach v
-    std::vector<Edge> parent;
+    // parent[v] = {previous vertex, index of edge in adj[previous vertex]}
+    std::vector<std::pair<unsigned int, unsigned int>> parent;
+
 
     Graph(unsigned int n)
-        : n(n), adj(n), parent(n, Edge(0, 0, 0, 0)) {}
+        : n(n),
+          adj(n),
+          parent(n, {n, 0}) {}
 
-    void add_edge(unsigned int from, unsigned int to,
+
+    void add_edge(unsigned int from,
+                  unsigned int to,
                   unsigned int capacity) {
 
-        Edge edge(from, to, capacity, 0);
+        // Index where the forward edge will be stored
+        unsigned int forward_index = adj[from].size();
 
-        edges.push_back(edge);
-        adj[from].push_back(edge);
+        // Index where the reverse edge will be stored
+        unsigned int reverse_index = adj[to].size();
 
-        // Reverse edge
-        Edge reverse(to, from, 0, 0);
+        Edge forward(
+            from,
+            to,
+            capacity,
+            0,
+            reverse_index
+        );
+
+        Edge reverse(
+            to,
+            from,
+            0,
+            0,
+            forward_index
+        );
+
+        adj[from].push_back(forward);
         adj[to].push_back(reverse);
     }
+
 
     bool BFS(unsigned int s, unsigned int t);
 };
@@ -50,28 +92,33 @@ public:
 bool Graph::BFS(unsigned int s, unsigned int t) {
 
     std::vector<bool> visited(n, false);
+
     std::queue<unsigned int> q;
 
     q.push(s);
     visited[s] = true;
+
 
     while (!q.empty()) {
 
         unsigned int u = q.front();
         q.pop();
 
-        for (auto edge : adj[u]) {
 
-            // Only use edges with remaining capacity
+        for (unsigned int i = 0; i < adj[u].size(); i++) {
+
+            const Edge &edge = adj[u][i];
+
             if (!visited[edge.to] &&
-                edge.capacity > edge.flow) {
+                edge.residual_capacity() > 0) {
 
                 visited[edge.to] = true;
 
-                // Remember how we reached this vertex
-                parent[edge.to] = edge;
+                // Remember exactly which edge brought us here
+                parent[edge.to] = {u, i};
 
                 q.push(edge.to);
+
 
                 if (edge.to == t) {
                     return true;
@@ -84,76 +131,99 @@ bool Graph::BFS(unsigned int s, unsigned int t) {
 }
 
 
-unsigned int max_flow(Graph G, unsigned int s, unsigned int t) {
+unsigned int max_flow(Graph G,
+                      unsigned int s,
+                      unsigned int t) {
 
     unsigned int flow = 0;
 
+
     while (G.BFS(s, t)) {
 
-        // Find bottleneck of path
-        unsigned int path_flow =
-            std::numeric_limits<unsigned int>::max();
+        // -------------------------------------------------
+        // 1. Find bottleneck of augmenting path
+        // -------------------------------------------------
+
+        long long path_flow = std::numeric_limits<long long>::max();
 
         unsigned int v = t;
 
+
         while (v != s) {
 
-            Edge edge = G.parent[v];
+            unsigned int u = G.parent[v].first;
+            unsigned int edge_index = G.parent[v].second;
 
-            path_flow = std::min(
-                path_flow,
-                edge.capacity - edge.flow
-            );
+            Edge &edge = G.adj[u][edge_index];
 
-            v = edge.from;
+            long long residual_capacity = edge.residual_capacity();
+
+            path_flow = std::min(path_flow, residual_capacity);
+
+            v = u;
         }
 
 
-        // Update flow along path
+        // -------------------------------------------------
+        // 2. Send flow through the path
+        // -------------------------------------------------
+
         v = t;
 
+
         while (v != s) {
 
-            Edge edge = G.parent[v];
+            unsigned int u = G.parent[v].first;
+            unsigned int edge_index = G.parent[v].second;
 
-            // edit edge flow
-            for (auto &e : G.adj[edge.from]) {
+            Edge &edge = G.adj[u][edge_index];
 
-                if (e.to == edge.to) {
-                    e.flow += path_flow;
-                    break;
-                }
-            }
 
-            // edit reverse edge flow
-            for (auto &e : G.adj[edge.to]) {
+            // Increase flow on current edge
+            edge.flow += static_cast<int>(path_flow);
 
-                if (e.to == edge.from) {
-                    e.flow -= path_flow;
-                    break;
-                }
-            }
 
-            v = edge.from;
+            // Find corresponding reverse edge
+            Edge &reverse_edge =
+                G.adj[edge.to][edge.reverse];
+
+
+            // Decrease reverse flow
+            reverse_edge.flow -= static_cast<int>(path_flow);
+
+
+            // Move backwards through the path
+            v = u;
         }
 
-        flow += path_flow;
+
+        flow += static_cast<unsigned int>(path_flow);
     }
+
 
     return flow;
 }
 
+
 int main() {
-    unsigned int n; 
-    std::cin>>n; 
-    Graph G(n); 
 
-    G.add_edge(0, 1, 10);
-    G.add_edge(0, 2, 5);
-    G.add_edge(1, 2, 15);
-    G.add_edge(1, 3, 10);
-    G.add_edge(2, 3, 10);
-    std::cout << max_flow(G, 0, 3) << std::endl;
+    Graph G(8);
 
-    return 0; 
+    G.add_edge(0, 3, 1);
+    G.add_edge(0, 1, 1);
+
+    G.add_edge(3, 4, 1);
+    G.add_edge(4, 7, 1);
+
+    G.add_edge(3, 5, 1);
+    G.add_edge(5, 6, 1);
+    G.add_edge(6, 7, 1);
+
+    G.add_edge(1, 2, 1);
+    G.add_edge(2, 4, 1);
+
+
+    std::cout << max_flow(G, 0, 7) << std::endl;
+
+    return 0;
 }
