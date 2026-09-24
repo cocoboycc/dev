@@ -4,6 +4,7 @@
 #include <random>
 #include <chrono>
 #include <cassert>
+#include <climits>
 void merge(std::vector<double> &vec, unsigned int l, unsigned int m, unsigned int r){
     unsigned int curr_left= l; 
     unsigned int curr_right=m+1; 
@@ -126,6 +127,76 @@ void radix_sort(std::vector<std::string>& vec, int left, int right, int bit) {
 
     radix_sort(vec, left, i - 1, bit + 1);
     radix_sort(vec, i, right, bit + 1);
+}
+
+void dp_largest_inc_subs(const std::vector<int> vec){
+    int n = vec.size();
+
+    std::vector<int> T(n + 1, INT_MAX);
+    T[0] = INT_MIN;
+
+    std::vector<int> V(n, INT_MAX);
+
+    for (int k = 0; k < n; ++k){
+        for (int l = 0; l < n; ++l){
+            if (vec[k] > T[l] && vec[k] < T[l + 1]){
+                T[l + 1] = vec[k]; 
+                V[k] = T[l]; 
+            }
+        } 
+    }
+
+    // searching the largest index in T with T[i] < INT_MAX
+    int largest_index = 0;
+
+    for (int l = 1; l <= n; ++l){
+        if (T[l] < INT_MAX){
+            largest_index = l; 
+        }
+    }
+
+    int e = T[largest_index];
+
+    while (e != INT_MIN){
+
+        for (int i = 0; i < n; ++i){
+
+            if (vec[i] == e){
+
+                std::cout << e << " "; 
+                e = V[i];
+                break;
+            }
+        }
+    }
+}
+
+
+int knapsack(int W, std::vector<int> &val, std::vector<int> &wt) {
+    int n = wt.size();
+    std::vector<std::vector<int>> dp(n + 1, std::vector<int>(W + 1));
+
+    for (int i = 0; i <= n; i++) {
+        for (int j = 0; j <= W; j++) {
+            
+            // If there is no item or the knapsack's capacity is 0
+            if (i == 0 || j == 0)
+                dp[i][j] = 0;
+            else {
+                int pick = 0;
+                
+                // Pick ith item if it does not exceed the capacity of knapsack
+                if(wt[i - 1] <= j)
+                    pick = val[i - 1] + dp[i - 1][j - wt[i - 1]];
+                    
+                // Don't pick the ith item
+                int notPick = dp[i - 1][j];
+                
+                dp[i][j] = std::max(pick, notPick);
+            }
+        }
+    }
+    return dp[n][W];
 }
 
 
