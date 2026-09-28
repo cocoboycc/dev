@@ -199,7 +199,34 @@ int knapsack(int W, std::vector<int> &val, std::vector<int> &wt) {
     return dp[n][W];
 }
 
+//least number of operations to convert string A to string B
+//Levenshtein parameters: insertion, deletion, substitution
+int insertion_cost = 1;
+int deletion_cost = 1;
+int substitution_cost = 1;
+int dp_edit_distance(const std::string& A, const std::string& B) {
 
+    int m= A.size(); 
+    int n=B.size(); 
+
+    std::vector<std::vector<int>> dp(n+1, std::vector<int>(m+1,0)); 
+    for (int i=0; i<=m; ++i){
+        dp[0][i] = i * insertion_cost; 
+    }
+    for (int j=0; j<=n; ++j){
+        dp[j][0] = j * deletion_cost; 
+    }
+    for (int i=1; i<=n; ++i){
+        for (int j=1; j<=m; ++j){
+            if (A[j-1]==B[i-1]){
+                dp[i][j] = dp[i-1][j-1];
+            }else {
+                dp[i][j]= std::min({dp[i-1][j]+deletion_cost, dp[i][j-1]+insertion_cost, dp[i-1][j-1]+substitution_cost});
+            }
+        }
+    }
+    return dp[n][m];
+}
 
 int main(){
 unsigned int n = 100000000;
