@@ -11,29 +11,74 @@ class Layer_Dense:
     def forward(self, inputs):
         self.output = np.dot(inputs, self.weights) + self.biases
 
-layer= Layer_Dense(3,3)
-layer.forward([[1,2,3]])
-print(layer.output)
+class Activation_RELU: 
+    def forward(self, inputs): 
+        self.output=np.maximum(0, inputs)
 
+class Activation_Softmax:
+    def forward(self, inputs):
+        exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
+        probabilities = exp_values / np.sum(exp_values, axis=1, keepdims=True)
+        self.output = probabilities
 
-def RELU(input): 
-    return np.maximum(0,input)  
-print (RELU(-2))
+class Loss: 
+    def calculate(self, output, y):
+        sample_losses = self.forward(output, y)
+        data_loss = np.mean(sample_losses)
+        return data_loss
 
-total_values= [1,2,3]
-weights_1=[0.2, 0.8, -0.5]
-weights_2=[0.5, -0.91, 0.26]
-weights_3=[-0.26, -0.27, 0.17]
-total_weights= [weights_1, weights_2, weights_3]
+class Loss_CategoricalCrossentropy(Loss):
+    def forward(self, y_pred, y_true):
+        samples = len(y_pred)
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1 - 1e-7)
+        if len(y_true.shape) == 1:
+            correct_confidences = y_pred_clipped[range(samples), y_true]
+        elif len(y_true.shape) == 2:
+            correct_confidences = np.sum(y_pred_clipped * y_true, axis=1)
+        negative_log_likelihoods = -np.log(correct_confidences)
+        return negative_log_likelihoods
 
+def accuracy(pred, y):
+    predictions= np.argmax(pred, axis=1)
+    if len(y.shape)==2:
+        y= np.argmax(y, axis=1)
+    accuracy= np.mean(predictions==y)
+    return accuracy
+class_targets = np.array([0, 1, 1])
 
-bias_1= 2
-bias_2=3
-bias_3=0.5
-total_biases=[bias_1, bias_2, bias_3]
-total_biases= np.sum(total_biases)
-output_layers=[0,0,0]
+min_loss=1
+layer1= Layer_Dense(2,3)
+inputs= [[1,2],
+        [4,5],
+        [7,8]]
 
-output_layers= np.dot(total_weights, total_values) + total_biases
-#print (np.sum(output_layers))
+layer2= Layer_Dense(3,3)
 
+for i in range(100000):
+    layer1.weights += 0.05 *np.random.randn(2,3) 
+    layer2.weights += 0.05*np.random.randn(3,3) 
+    layer1.biases += 0.05* np.random.randn(1,3) 
+    layer2.biases += 0.05* np.random.randn(1,3) 
+
+    layer1.forward(inputs)
+    relu_step= Activation_RELU()
+    relu_step.forward(layer1.output)
+    layer2.forward(relu_step.output)
+    softmax_step= Activation_Softmax()
+    softmax_step.forward(layer2.output)
+    Losses= Loss_CategoricalCrossentropy()
+    loss= Losses.calculate(softmax_step.output, class_targets)
+    curr_min_loss= loss
+
+    if curr_min_loss<min_loss: 
+        min_loss= curr_min_loss
+        print (f"Iteration:{i}: Min_Loss: {min_loss}")
+        best_weights_1 = layer1.weights
+        best_weights_2 = layer2.weights
+        best_biases_1 = layer1.biases
+        best_biases_2 = layer2.biases
+        best_output = softmax_step.output.copy()
+
+print (min_loss)
+print(best_weights_1, best_weights_2, best_biases_1, best_biases_2)
+print (best_output)
